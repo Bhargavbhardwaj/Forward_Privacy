@@ -50,3 +50,32 @@ def train_local_model(model, train_loader, epochs=1):
             optimizer.step()
 
     return model
+
+def evaluate_model(model, test_loader):
+
+    model.eval()
+
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+
+        for images, labels in test_loader:
+
+            output = model(images)
+
+            predictions = output.argmax(
+                dim=1
+            )
+
+            total += labels.size(0)
+
+            correct += (
+                    predictions == labels
+            ).sum().item()
+
+    accuracy = (
+                       correct / total
+               ) * 100
+
+    return accuracy
