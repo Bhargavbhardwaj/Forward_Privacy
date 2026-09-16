@@ -1,39 +1,55 @@
 from key_manager import KeyManager
 from crypto_utils import encrypt_data, decrypt_data
+from pqc_utils import PQCKeyExchange
 
 
 class ForwardPrivacyClient:
 
-    def __init__(self, client_id):
+    def __init__(self, client_id, server_public_key):
+
         self.client_id = client_id
-        self.key_manager = KeyManager()
 
-    def encrypt_update(self, model_update):
-        """
-        Encrypt a client's model update using
-        the current round key.
-        """
+        # Create PQC helper
+        self.pqc = PQCKeyExchange()
 
-        current_key = self.key_manager.get_current_key()
-
-        encrypted_update = encrypt_data(
-            current_key,
-            model_update
+        # Client encapsulates using SERVER public key
+        shared_secret, self.pqc_ciphertext = (
+            self.pqc.encapsulate(server_public_key)
         )
 
-        return encrypted_update
+        # Derive initial AES key from PQC shared secret
+        initial_key = self.pqc.derive_aes_key(
+            shared_secret
+        )
+
+        # Forward privacy key manager
+        self.key_manager = KeyManager()
+
+        # Start forward-privacy chain from PQC-derived key
+        self.key_manager.current_key = initial_key
+
+    def encrypt_update(self, plaintext):
+
+        return encrypt_data(
+            self.key_manager.get_current_key(),
+            plaintext
+        )
+
+    def decrypt_update(self, encrypted_update):
+
+        return decrypt_data(
+            self.key_manager.get_current_key(),
+            encrypted_update
+        )
 
     def complete_round(self):
-        """
-        Evolve the key after a training round.
-        """
 
         self.key_manager.evolve_key()
 
     def get_current_key(self):
-        """
-        Returns the current key.
-        Used only for controlled experiments.
-        """
 
         return self.key_manager.get_current_key()
+
+    def get_pqc_ciphertext(self):
+
+        return self.pqc_ciphertext
